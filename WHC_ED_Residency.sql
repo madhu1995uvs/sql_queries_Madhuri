@@ -6,6 +6,7 @@ DECLARE @End Date
 SET @Start = '07/01/18'
 SET @End = '07/01/22'
 
+--cte_purpose: create binary variables for bed request to icu and bed request to operating room
 ; with notes as (
 	select distinct PT_FIN
 	, case when result like '%critical%' then '1' end destination_icu
@@ -17,7 +18,7 @@ SET @End = '07/01/22'
 	and result not like '%Care Team :   Psychiatry%'
 	)
 
-
+--cte_purpose: create variables for patients first seen by different types of providers
 , tat as (
 	select distinct 
 	PATIENT_FIN
@@ -51,21 +52,21 @@ SET @End = '07/01/22'
 	, case when PT_ACUITY like '%4%' or pt_acuity like '%5%' then '1' end low_acuity
 	
 	, case when FIRST_RESIDENT_SEEN is null  /*patients seen by EM faculty*/
-		and PT_ACUITY like '%1%' or pt_acuity like '%2%' or pt_acuity like '%3%'
+		and (PT_ACUITY like '%1%' or pt_acuity like '%2%' or pt_acuity like '%3%')
 		then '1'
 		end seen_by_EM_Faculty
 
 	, case when FIRST_RESIDENT_SEEN is null  /*patients seen by non EM faculty*/
-		and PT_ACUITY like '%4%' or pt_acuity like '%5%'
+		and (PT_ACUITY like '%4%' or pt_acuity like '%5%')
 		and First_MD_seen not like '%PA-C' 
 		and First_MD_seen not like '%NP' 
 		then '1'
 		end seen_by_non_EM_Faculty
 
-	, case when FIRST_RESIDENT_SEEN not like '%PA-C' /*substract from patients seen by EM residents*/
+	, case when FIRST_RESIDENT_SEEN not like '%PA-C' /*substract patients seen by EM residents to get seen_by_non_EM_Residents*/
 		and First_RESIDENT_seen not like '%NP' 
 		then '1' 
-		end seen_by_non_EM_Residents
+		end seen_by_ANY_Resident
 
 	, case when FIRST_RESIDENT_SEEN like '%ierardo, aly%' 
 		or FIRST_RESIDENT_SEEN like '%johnson, matthew%'
@@ -102,6 +103,7 @@ SET @End = '07/01/22'
 	and PT_ACUITY is not null
 	)
 
+--cte_purpose: create variable for weekend
 , daily_phys_hrs as (
 	select *
 	, case when weekday_number=1 or weekday_number=7 then '1' else '0' end weekend
@@ -110,6 +112,7 @@ SET @End = '07/01/22'
 	and first_md_seen not like '%pa-c'
 	)
 
+--cte_purpose: create variable for number of LIP physicians each weekday hour of the academic year
 , provider_wkday as (
 	select hov, dov, academic_year
 	, count(distinct first_md_seen) as unique_providers_wkday
@@ -118,6 +121,7 @@ SET @End = '07/01/22'
 	group by hov, dov, academic_year
 	)
 
+--cte_purpose: create variable for number of LIP physicians each weekend hour of the academic year
 , provider_wkend as (
 	select hov, dov, academic_year
 	, count(distinct first_md_seen) as unique_providers_wkend
@@ -126,6 +130,7 @@ SET @End = '07/01/22'
 	group by hov, dov, academic_year
 	)
 
+--cte_purpose: sum total LIP physician-hours during weekdays each academic year
 , provider_wkday_sum as (
 	select academic_year
 	, sum(unique_providers_wkday) as wkday_prov_hrs
@@ -133,6 +138,7 @@ SET @End = '07/01/22'
 	group by academic_year
 	)
 
+--cte_purpose: sum total LIP physician-hours during weekends each academic year
 , provider_wkend_sum as (
 	select academic_year as academic_year1
 	, sum(unique_providers_wkend) as wkend_prov_hrs
@@ -140,6 +146,7 @@ SET @End = '07/01/22'
 	group by academic_year
 	)
 
+--cte_purpose: average LIP physician-hours during weekdays and weekends each academic year
 , provider_hr_avg as (
 	select *
 	, wkday_prov_hrs/261 as avg_wkday_prov_hrs --average year with 365 days total, 5/7 are weekdays
@@ -148,6 +155,7 @@ SET @End = '07/01/22'
 	inner join provider_wkend_sum on provider_wkday_sum.academic_year=provider_wkend_sum.academic_year1
 	)
 
+--cte_purpose: count total patients from variety of administrative categories for multiple academic years
 , patient_counts as (
 	select academic_year
 	, count(PATIENT_FIN) as total_ed_patients
@@ -162,11 +170,12 @@ SET @End = '07/01/22'
 	, count (seen_by_PA_NP) as patients_seen_by_PA_N
 	, count (seen_by_EM_Faculty) as patients_seen_by_EM_Faculty
 	, count (seen_by_non_EM_Faculty) as patients_seen_by_non_EM_Faculty
-	, count (seen_by_non_EM_Residents) as patients_seen_by_non_EM_Residents
+	, count (seen_by_ANY_Resident) as patients_seen_by_ANY_Resident
 
 	from tat
 	group by academic_year
 	)
+
 
 select * 
 from patient_counts
