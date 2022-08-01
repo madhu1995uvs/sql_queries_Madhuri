@@ -1,0 +1,69 @@
+USE EMTCQIData
+DECLARE @Start Date
+DECLARE @End Date
+
+--SET @Start = '01/01/18'
+--SET @End = '01/01/22'
+
+--cte_purpose: report fin, mrn, and checkin to join with index visits, below
+; with tat as 
+       (
+       select patient_fin as pt_fin
+       , PATIENT_MRN as pt_mrn
+       , checkin_date_time
+	   , dispo_date_time
+       from ED_TAT_MASTER
+	   where PATIENT_MRN not like '0000%'
+       )
+
+--cte_purpose: report fin, mrn, checkin and checkin+365 days
+, index_vis as
+       (
+       select distinct pt_fin as pt_fin0
+       , pt_mrn as pt_mrn0
+       , CHECKIN_DATE_TIME as checkin_date_time0
+       , dateadd(DAY, 365, CHECKIN_DATE_TIME) as checkin_date_time0_plus365
+	   , dateadd(hour, 8, dispo_date_time) as dispo_date_time0_plus8
+       from tat
+       )
+
+--cte_purpose: join index visit with revisits within the subsequent 365 days
+, vis_a_vis as
+       (
+       select pt_fin0, pt_mrn0, checkin_date_time0, checkin_date_time0_plus365
+       , pt_fin, pt_mrn, checkin_date_time
+       from index_vis
+       inner join tat on index_vis.pt_mrn0=tat.pt_mrn
+       where index_vis.pt_fin0 != tat.pt_fin
+       and tat.CHECKIN_DATE_TIME between index_vis.dispo_date_time0_plus8 and index_vis.checkin_date_time0_plus365
+       )
+
+--cte_purpose: create a variable number_revisit_subsequent_yr
+, revisit_count as
+       (
+       select checkin_date_time0, checkin_date_time0_plus365, pt_mrn0  
+       , count(pt_fin) number_revisit_subsequent_yr
+       from vis_a_vis
+       group by checkin_date_time0, checkin_date_time0_plus365, pt_mrn0
+       )
+
+--cte_purpose: data validation; count unique patients that have at least 2 visits in a 12-month period
+, unique_mrn as
+	(
+	select distinct pt_mrn0
+	from revisit_count
+	)
+
+--cte_purpose: data validation; maximum number of return visits in a 12-month period for each patient that had at least 2 visits in a 12-month period
+, max_revisits as
+	(
+	select pt_mrn0
+	, max(number_revisit_subsequent_yr) as maximum_revisits_for_mrn
+	from revisit_count
+	group by pt_mrn0
+	)
+
+
+select *
+from revisit_count
+--order by checkin_date_time0, checkin_date_time0_plus365, pt_mrn0
