@@ -1,5 +1,4 @@
 
-
 USE EMTCQIData
 DECLARE @Start Date
 DECLARE @End Date
@@ -13,7 +12,7 @@ to First-Line Antimicrobial Treatment for Presumed Urinary Tract Infections in
 the Emergency Department
 
 Written by ED Data Analytics Team
-Last updated 07/06/22 */
+Last updated 08/08/22 */
 
 --Common table expressions
 
@@ -62,6 +61,7 @@ with ua_results as
               )
 
 
+
 --cte_purpose: create variable for positive udip nitrite
 , udip_nit as (
        select pt_fin as pt_fin_udip_nit
@@ -86,7 +86,66 @@ with ua_results as
        where udip_result_name like '%wbc%'
        )
 
+ --cte_purpose: Create variable for Antibiotics prescribed
+ --Note to Kenny: confirm line 100
 
+ ,any_antibiotic_prescribed as (
+ select 
+ PT_FIN as PT_FIN_any_antibiotic_prescribed
+ ,any_abx_prescribed='1'
+--, COMPLETED_DT_TM
+--, ORDER_STATUS
+from ED_Orders_Import_Master
+where ORIG_ORD_AS like 'Prescription'
+              and (ORDER_MNEMONIC like '%cefprozil%'
+                      or ORDER_MNEMONIC like '%cephalex%'
+                      or ORDER_MNEMONIC like '%trimethoprim%'
+                      or ORDER_MNEMONIC like '%nitrofurantoin%'
+                      or ORDER_MNEMONIC like '%cefdinir%'
+                      or ORDER_MNEMONIC like '%amoxicillin%'
+                      or ORDER_MNEMONIC like '%ciprofloxacin%'
+                    or  ORDERED_AS_MNEMONIC Like '%cillin%' 					Or ORDERED_AS_MNEMONIC Like '%mycin%'					Or ORDERED_AS_MNEMONIC like '%micin%'					Or ORDERED_AS_MNEMONIC Like '%cef%'				/* avoid acephen rectal tylenol by excluding % */					Or ORDERED_AS_MNEMONIC Like 'ceph%' 					Or ORDERED_AS_MNEMONIC Like 'roceph%' 					Or ORDERED_AS_MNEMONIC Like '%augmentin%' 					Or ORDERED_AS_MNEMONIC Like '%penem%'					Or ORDERED_AS_MNEMONIC like '%oxacin%'					Or ORDERED_AS_MNEMONIC like '%zolid%'
+                      )
+              and (RX_ROUTE is null
+                      or (RX_ROUTE Not Like '%oph%'      
+                      And RX_ROUTE Not Like '%top%' 
+                      And RX_ROUTE Not Like '%eye%' 
+                      And RX_ROUTE Not Like '%ear%' 
+                      And RX_ROUTE Not Like '%otic%'))
+              and (ORDER_STATUS = 'Ordered'
+			  or ORDER_STATUS = 'Completed'))
+			  --AND CHECKIN_DT_TM BETWEEN @Start and @End
+
+
+ --cte_purpose: Create variable for Antibiotics start
+
+ ,any_antibiotic_start as (
+ select 
+ PT_FIN as PT_FIN_any_antibiotic_start
+ ,any_abx_start='1'
+--, COMPLETED_DT_TM
+--, ORDER_STATUS
+from ED_Orders_Import_Master
+where ORIG_ORD_AS like 'Normal Order'
+and (CATALOG_TYPE = 'pharmacy')
+              and (ORDER_MNEMONIC like '%cefprozil%'
+                      or ORDER_MNEMONIC like '%cephalex%'
+                      or ORDER_MNEMONIC like '%trimethoprim%'
+                      or ORDER_MNEMONIC like '%nitrofurantoin%'
+                      or ORDER_MNEMONIC like '%cefdinir%'
+                      or ORDER_MNEMONIC like '%amoxicillin%'
+                      or ORDER_MNEMONIC like '%ciprofloxacin%'
+						or ORDERED_AS_MNEMONIC Like '%cillin%' 						Or ORDERED_AS_MNEMONIC Like '%mycin%'						Or ORDERED_AS_MNEMONIC like '%micin%'						Or ORDERED_AS_MNEMONIC Like '%cef%'					/* avoid acephen rectal tylenol by excluding % */						Or ORDERED_AS_MNEMONIC Like 'ceph%' 						Or ORDERED_AS_MNEMONIC Like 'roceph%' 						Or ORDERED_AS_MNEMONIC Like '%augmentin%' 						Or ORDERED_AS_MNEMONIC Like '%penem%'						Or ORDERED_AS_MNEMONIC like '%oxacin%'						Or ORDERED_AS_MNEMONIC like '%zolid%'
+)
+              and (RX_ROUTE is null
+                      or (RX_ROUTE Not Like '%oph%'      
+                      And RX_ROUTE Not Like '%top%' 
+                      And RX_ROUTE Not Like '%eye%' 
+                      And RX_ROUTE Not Like '%ear%' 
+                      And RX_ROUTE Not Like '%otic%'))
+              and (ORDER_STATUS = 'Ordered'
+			  or ORDER_STATUS = 'Completed'))
+			  --AND CHECKIN_DT_TM BETWEEN @Start and @End
 
 --cte_purpose: create dose, unit, frequency, duration variables for prescribed antibiotics
 , antibiotic_prescibed as (
