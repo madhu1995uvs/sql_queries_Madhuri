@@ -8,11 +8,12 @@
 --cte_purpose: capture patients with sepsis pathway initiated
 , seps as
 	(
-	select fin, POTENTIAL_SEPSIS_ORDER_DATE
-	--, format(potential_sepsis_order_date, 'yyyy-MM-dd') as seps_date
-	--, left(potential_sepsis_order_date, 11) as seps_date
-	, SEPSIS_PATHWAY_INITIATED_ORDERED, SEPSIS_PATHWAY_INITIATED_ORDER_STATUS
+	select fin, SEPSIS_PATHWAY_INITIATED_ORDER_DATE
+	--, format(SEPSIS_PATHWAY_INITIATED_ORDER_DATE, 'yyyy-MM-dd') as seps_date
+	--, left(SEPSIS_PATHWAY_INITIATED_ORDER_DATE, 11) as seps_date
+	--, SEPSIS_PATHWAY_INITIATED_ORDERED, SEPSIS_PATHWAY_INITIATED_ORDER_STATUS
 	from sepsis_order_import
+	where SEPSIS_PATHWAY_INITIATED_ORDER_DATE is not null
 	)
 
 --cte_purpose: review the column names from the sepsis_order_import table
@@ -31,4 +32,5 @@
 	where checkin_date_time between '01/01/2022' and '08/27/2022'
 	)
 
-select * from tat inner join seps on tat.patient_fin = seps.fin
+--select * from tat inner join seps on tat.patient_fin = seps.fin
+select * from seps left outer join tat on seps.fin = tat.PATIENT_FIN
