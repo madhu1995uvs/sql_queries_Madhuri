@@ -8,7 +8,7 @@
 --cte_purpose: capture patients with sepsis pathway initiated
 , seps as
 	(
-	select fin, SEPSIS_PATHWAY_INITIATED_ORDER_DATE
+	select fin, SEPSIS_PATHWAY_INITIATED_ORDER_DATE, POTENTIAL_SEPSIS_ORDER_STATUS
 	--, format(SEPSIS_PATHWAY_INITIATED_ORDER_DATE, 'yyyy-MM-dd') as seps_date
 	--, left(SEPSIS_PATHWAY_INITIATED_ORDER_DATE, 11) as seps_date
 	--, SEPSIS_PATHWAY_INITIATED_ORDERED, SEPSIS_PATHWAY_INITIATED_ORDER_STATUS
@@ -34,3 +34,5 @@
 
 --select * from tat inner join seps on tat.patient_fin = seps.fin
 select * from seps left outer join tat on seps.fin = tat.PATIENT_FIN
+where  tat.age_months between '6' and '216'
+and seps.POTENTIAL_SEPSIS_ORDER_STATUS like '%complete%'
