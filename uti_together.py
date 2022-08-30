@@ -11,11 +11,15 @@ import numpy as np
 import os
 from dateutil.parser import parse
 
+from sql_server_conn import sql_server_conn
+conn = sql_server_conn()
 
+"""
 conn = pyodbc.connect('Driver={ODBC Driver 17 for SQL Server};'
                       'Server=ENTSQL01LSNR;'
                       'Database=EMTCQIData;'
                       'Trusted_Connection=yes;')
+"""
 
 start_date = '01/01/2018'
 end_date = '04/01/2021'
@@ -492,7 +496,7 @@ and (CATALOG_TYPE = 'pharmacy')
 select patient_fin, patient_mrn, PT_DOB,age_months, gender_cat, race_cat ,Ethnicity_cat
 ,Insurance_cat, insurance_other,Language_cat
 ,allicd,FIRST_MD_SEEN,LAST_ASSIGNED_MD,seen_by_res_pa, level_of_training
-,REASON_FOR_VISIT,ESI,PT_DX1,PT_DX2,PT_DX3,patient_mrn_bb, checkin_date_time_bb,first_temp
+,REASON_FOR_VISIT,ESI,PT_DX1,PT_DX2,PT_DX3,bb, checkin_date_time_bb,first_temp
 ,urine_cath, udip_result_cat
 ,RESULT_DT_TM_le, urine_result_ua_le,result_ua_le,ua_Le,RESULT_DT_TM_nit,urine_result_ua_nit,result_ua_nit
 ,ua_nitrite,RESULT_DT_TM_wbc,urine_result_ua_wbc,result_ua_wbc,ua_wbc,ua_final
@@ -570,7 +574,7 @@ allergies_sql = """
        , SUBSTRING(result,charindex('allergies (active)',result),1000) as allergy_str
        from ED_NOTES_MASTER
        where result like '%allergies (active%'
-       and RESULT_DT_TM between '01/01/2021' and '02/01/2021'
+       and RESULT_DT_TM between ? and ?
                        )
 
 --cte_purpose: create allergy
