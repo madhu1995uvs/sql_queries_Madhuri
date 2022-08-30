@@ -2,9 +2,10 @@
 	(
 	select *
 	from COVID_TAT
-	where CHECKIN_DATE_TIME between '01/01/2022' and '08/26/2022'
+	where CHECKIN_DATE_TIME between '08/28/2022' and '08/29/2022'
 	)
 
+	
 --cte_purpose: capture patients with sepsis pathway initiated
 , seps as
 	(
@@ -29,10 +30,10 @@
 	(
 	select patient_fin, patient_mrn, track_group, checkin_date_time, datediff(month,pt_dob,checkin_date_time) as age_months
 	from ED_TAT_MASTER
-	where checkin_date_time between '01/01/2022' and '08/27/2022'
+	where checkin_date_time between '08/25/2022' and '08/26/2022'
 	)
 
 --select * from tat inner join seps on tat.patient_fin = seps.fin
 select * from seps left outer join tat on seps.fin = tat.PATIENT_FIN
 where  tat.age_months between '6' and '216'
-and seps.POTENTIAL_SEPSIS_ORDER_STATUS like '%complete%'
+--and seps.POTENTIAL_SEPSIS_ORDER_STATUS like '%complete%'
