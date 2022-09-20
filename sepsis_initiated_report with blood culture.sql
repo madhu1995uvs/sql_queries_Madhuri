@@ -34,7 +34,7 @@
 	)
 
 
---cte_purpose: create variables for fin, mrn, track_group, age_months, to join with sepsis data
+--cte_purpose: create variables for blood culture order
 , culture as
 	(
 	select distinct 
