@@ -19,7 +19,7 @@ conn = sql_server_conn()
 #recipients below will receive a notification if there is an error in automated report, separate address with semicolin ';'
 error_recips = "kmckinley@childrensnational.org;muppuluri@childrensnational.org"
 #recepients below will receive automated report, separate address with semicolin ';'
-recipients_seps = "kmckinley@childrensnational.org;muppuluri@childrensnational.org"
+recipients_seps = "edresearchdirect@childrensnational.org;ikoutrouli@childrensnational.org"
 
 try:
     

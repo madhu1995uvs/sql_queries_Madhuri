@@ -11,11 +11,19 @@ from sql_server_conn import sql_server_conn
 from dateutil.parser import parse
 import email_jc as em
 
+
+#error_recips = "kmckinley@childrensnational.org"
+
+
 conn = sql_server_conn()
+today = date.today()
+start_date = '01/01/2021'  # str(today - timedelta(days=10))
+end_date = str(today - timedelta(days=3))
+date_range = parse(start_date).strftime("%m_%d_%Y") + '_to_' + \
+    parse(end_date).strftime("%m_%d_%Y")
 
-error_recips = "kmckinley@childrensnational.org"
 
-"""
+cit_sql = """
 ; with tat as 
 	(
 	SELECT distinct patient_fin
@@ -25,7 +33,10 @@ error_recips = "kmckinley@childrensnational.org"
 	, TRACK_GROUP
 	, PT_GENDER
 	, PT_DISCH_DISPO
-	, REASON_FOR_VISIT
+	, PT_DX1
+    , PT_DX2
+    , PT_DX3
+    , REASON_FOR_VISIT
 
 	from ED_TAT_MASTER
 	)
@@ -82,9 +93,13 @@ and (REASON_FOR_VISIT like '%scd%'
 	or REASON_FOR_VISIT like '%sikcle%'
 	or REASON_FOR_VISIT like '%ssd%'
 	or REASON_FOR_VISIT like '%sc pain%'
-	)
+    or concat(pt_dx1,pt_dx2,pt_dx3) like '%sickle%' 
+    or concat(pt_dx1,pt_dx2,pt_dx3) like '%occlusive%' 
+    or concat(pt_dx1,pt_dx2,pt_dx3) like '%Hb-SS%')
 and TRACK_GROUP not like 'edu%'
 --and ALLICD like '%,D57%' and ALLICD not like '%,D57.3%'
 
 order by CHECKIN_DATE_TIME
 """
+
+cit = pd.read_sql(cit_sql, conn, params=[start_date, end_date])
