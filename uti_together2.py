@@ -222,7 +222,7 @@ Last updated 09/07/22 */
 		else '0'
 		end ua_wbc
 
-	from LAB_DATA_IMPORT_Master
+	from ED_LAB_DATA_Master
 	WHERE (ORDER_MNEMONIC like 'complete%') 
 		and (RESULT_MNEMONIC like '%Urine Leukocyte Esterase'
 			or RESULT_MNEMONIC like '%urine wbc' 
@@ -263,7 +263,7 @@ Last updated 09/07/22 */
               , ORDER_MNEMONIC as udip_order
               ,result as udip_result
                       --,try_convert(integer,result) as numeric_result
-              from LAB_DATA_IMPORT_Master
+              from ED_LAB_DATA_Master
               WHERE ORDER_MNEMONIC like '%urine%' and ORDER_MNEMONIC like '%poc%'
               and (RESULT_MNEMONIC = 'urine wbc' or RESULT_MNEMONIC = 'urine nitrite')
               and result not like '%test%'
@@ -335,7 +335,7 @@ end urine_cath
 			then '1'
 			else '0'
 end positive_culture
-	from LAB_DATA_IMPORT_Master
+	from ED_LAB_DATA_Master
 	where RESULT_DT_TM between @Start and @end
 		and ORDER_MNEMONIC like '%urine culture%')
 	
