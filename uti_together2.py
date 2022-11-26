@@ -11,6 +11,7 @@ import pandas as pd
 import pyodbc 
 import numpy as np
 import os
+import re
 from dateutil.parser import parse
 from datetime import date
 
@@ -755,6 +756,204 @@ allergies = pd.read_sql(allergies_sql,conn)
 allergies1 = allergies.drop_duplicates()
 mu = pd.merge(uti1,allergies1,how="left",left_on='patient_fin',right_on='fin_notes')
 
+
+# %%
+mu['new_allergies'] = mu['allergy_text'].fillna('no allergies')
+mu['new_allergies'] = mu['new_allergies'].str.lower()
+
+# %%
+# nonfunctional cell. Could retire, has no function other than example
+"""TRY THE FOLLOWING SCRIPT ON EACH COMPILE BEFORE WRITING FUNCTION"""
+mu.query("new_allergies.str.contains(r'(penicillin|pen g benz|pen g pot|benzathine penic)')")['patient_mrn']
+
+
+# %%
+"""delete after completing update"""
+mu1 = mu.copy()
+
+# %%
+"""DEFINE ABX CATEGORIES WITH REGEX"""
+cat_aminoglycoside = re.compile(r'(amikacin|tobramycin|neomyc|gentamicin)')
+def amingoglycoside(textblock):
+	return bool(cat_aminoglycoside.search(textblock))==True
+
+mu['aminoglycoside_allergy'] = mu['new_allergies'].apply(amingoglycoside)
+
+cat_penicillin = re.compile(r'(penicillin|pen g benz|pen g pot|benzathine penic)')
+def penicillin(textblock):
+	return bool(cat_penicillin.search(textblock))==True
+
+mu['penicillin_allergy'] = mu['new_allergies'].apply(penicillin)
+
+cat_penicillin_beta_lactamase_resistant =re.compile(r'(nafcillin|oxacillin)')
+def penicillin_beta_lactamase_resistant(textblock):
+	return bool(cat_penicillin_beta_lactamase_resistant.search(textblock))==True
+mu['penicillin_beta_lactamase_resistant_allergy'] = mu['new_allergies'].apply(penicillin_beta_lactamase_resistant)
+
+cat_aminopcn_or_carboxypcn_or_ureidopcn_w_beta_lactamase_inhibitor = re.compile(r'((amox|ampic|ticarc|piperac).*(clav|bactam|tazo)|augmentin|unasyn|zosyn)')
+def aminopcn_or_carboxypcn_or_ureidopcn_w_beta_lactamase_inhibitor(textblock):
+	return bool(cat_aminopcn_or_carboxypcn_or_ureidopcn_w_beta_lactamase_inhibitor.search(textblock))==True
+mu['aminopcn_or_carboxypcn_or_ureidopcn_w_beta_lactamase_inhibitor_allergy'] = mu['new_allergies'].apply(aminopcn_or_carboxypcn_or_ureidopcn_w_beta_lactamase_inhibitor)
+
+cat_aminopenicillin = re.compile(r'am(oxi|pi)cillin')
+def aminopenicillin(textblock):
+	return bool(cat_aminopenicillin.search(textblock))==True
+mu['aminopenicillin_allergy'] = mu['new_allergies'].apply(aminopenicillin)
+
+cat_cephalosporin_w_beta_lactamase_inhibitor = re.compile(r'(cef|ceph).+bactam')
+def cephalosporin_w_beta_lactamase_inhibitor(textblock):
+	return bool(cat_cephalosporin_w_beta_lactamase_inhibitor.search(textblock))==True
+mu['cephalosporin_w_beta_lactamase_inhibitor_allergy'] = mu['new_allergies'].apply(cephalosporin_w_beta_lactamase_inhibitor)
+
+cat_first_gen_cephalosporin= re.compile(r'(ancef|cefa[^c]|cephalexin)')
+def first_gen_cephalosporin(textblock):
+	return bool(cat_first_gen_cephalosporin.search(textblock))==True
+mu['first_gen_cephalosporin_allergy'] = mu['new_allergies'].apply(first_gen_cephalosporin)
+
+cat_second_gen_cephalosporin = re.compile(r'(cefoxi|cef[up]ro[xz]|cefotetan)')
+def second_gen_cephalosporin(textblock):
+	return bool(cat_second_gen_cephalosporin.search(textblock))==True
+mu['second_gen_cephalosporin_allergy'] = mu['new_allergies'].apply(second_gen_cephalosporin)
+
+cat_third_gen_cephalosporin = re.compile(r'(ceftri|cefttri|cefix|cefdin|cefotax|ceftaz|cefpodox|omnicef)')
+def third_gen_cephalosporin(textblock):
+	return bool(cat_third_gen_cephalosporin.search(textblock))==True
+mu['third_gen_cephalosporin_allergy'] = mu['new_allergies'].apply(third_gen_cephalosporin)
+
+cat_fourth_gen_cephalosporin = re.compile(r'cefepime')
+def fourth_gen_cephalosporin(textblock):
+	return bool(cat_fourth_gen_cephalosporin.search(textblock))==True
+mu['fourth_gen_cephalosporin_allergy'] = mu['new_allergies'].apply(fourth_gen_cephalosporin)
+
+cat_fifth_gen_cephalosporin = re.compile(r'ceftaroline')
+def fifth_gen_cephalosporin(textblock):
+	return bool(cat_fifth_gen_cephalosporin.search(textblock))==True
+mu['fifth_gen_cephalosporin_allergy'] = mu['new_allergies'].apply(fifth_gen_cephalosporin)
+
+cat_lincosamide = re.compile(r'clinda')
+def lincosamide(textblock):
+	return bool(cat_lincosamide.search(textblock))==True
+mu['lincosamide_allergy'] = mu['new_allergies'].apply(lincosamide)
+
+
+cat_nitroimidazole =re.compile(r'(metronidazole|flagyl)')
+def nitroimidazole(textblock):
+	return bool(cat_nitroimidazole.search(textblock))==True
+mu['nitroimidazole_allergy'] = mu['new_allergies'].apply(nitroimidazole)
+
+cat_triazinane = re.compile(r'methenamine')
+def triazinane(textblock):
+	return bool(cat_triazinane.search(textblock))==True
+mu['triazinane_allergy'] = mu['new_allergies'].apply(triazinane)
+
+
+cat_glycopeptide =re.compile(r'(vancomyc|vancomyin|dalbavanc)')
+def glycopeptide(textblock):
+	return bool(cat_glycopeptide.search(textblock))==True
+mu['glycopeptide_allergy'] = mu['new_allergies'].apply(glycopeptide)
+
+
+cat_antimalarial =re.compile(r'atovaquone')
+def antimalarial(textblock):
+	return bool(cat_antimalarial.search(textblock))==True
+mu['antimalarial_allergy'] = mu['new_allergies'].apply(antimalarial)
+
+cat_macrolide =re.compile(r'([yi]thromycin|e.e.s|fidaxomicin)')
+def macrolide(textblock):
+	return bool(cat_macrolide.search(textblock))==True
+mu['macrolide_allergy'] = mu['new_allergies'].apply(macrolide)
+
+cat_monobactam =re.compile(r'aztreonam')
+def monobactam(textblock):
+	return bool(cat_monobactam.search(textblock))==True
+mu['monobactam_allergy'] = mu['new_allergies'].apply(monobactam)
+
+cat_other_topical =re.compile(r'(bacitracin|mafenide|mupirocin|topical|ointment|ophthalmic|(top|opht|otic).+(soln|oint|susp)|dexameth|benzoyl peroxide|antibiotic irrigation mixture|silver)')
+def other_topical(textblock):
+	return bool(cat_other_topical.search(textblock))==True
+mu['other_topical_allergy'] = mu['new_allergies'].apply(other_topical)
+
+cat_sulfonamide =re.compile(r'(bactrim|sulf.+tri|sulfadiazine|sulfa drug)')
+def sulfonamide(textblock):
+	return bool(cat_sulfonamide.search(textblock))==True
+mu['sulfonamide_allergy'] = mu['new_allergies'].apply(sulfonamide)
+
+cat_fluoroquinolone =re.compile(r'[oi]floxacin')
+def fluoroquinolone(textblock):
+	return bool(cat_fluoroquinolone.search(textblock))==True
+mu['fluoroquinolone_allergy'] = mu['new_allergies'].apply(fluoroquinolone)
+
+cat_polypeptide =re.compile(r'colistimethate')
+def polypeptide(textblock):
+	return bool(cat_polypeptide.search(textblock))==True
+mu['polypeptide_allergy'] = mu['new_allergies'].apply(polypeptide)
+
+cat_antimycobacterial =re.compile(r'(dapsone|rifampin|rifapentine|rifaximin|rifamixin|rifabutin|isoniazid|ethambutol|xifaxan)')
+def antimycobacterial(textblock):
+	return bool(cat_antimycobacterial.search(textblock))==True
+mu['antimycobacterial_allergy'] = mu['new_allergies'].apply(antimycobacterial)
+
+cat_cyclic_lipopeptide =re.compile(r'daptomycin')
+def cyclic_lipopeptide(textblock):
+	return bool(cat_cyclic_lipopeptide.search(textblock))==True
+mu['cyclic_lipopeptide_allergy'] = mu['new_allergies'].apply(cyclic_lipopeptide)
+
+cat_tetracycline = re.compile(r'(doxy|mino|tetra|tige)cycline')
+def tetracycline(textblock):
+	return bool(cat_tetracycline.search(textblock))==True
+mu['tetracycline_allergy'] = mu['new_allergies'].apply(tetracycline)
+
+cat_carbapenem = re.compile(r'(erta|mero|imi)penem')
+def carbapenem(textblock):
+	return bool(cat_carbapenem.search(textblock))==True
+mu['carbapenem_allergy'] = mu['new_allergies'].apply(carbapenem)
+
+cat_oxazolidinone = re.compile(r'linezolid')
+def oxazolidinone(textblock):
+	return bool(cat_oxazolidinone.search(textblock))==True
+mu['oxazolidinone_allergy'] = mu['new_allergies'].apply(oxazolidinone)
+
+cat_nitrofuran = re.compile(r'nitrofuran')
+def nitrofuran(textblock):
+	return bool(cat_nitrofuran.search(textblock))==True
+mu['nitrofuran_allergy'] = mu['new_allergies'].apply(nitrofuran)
+
+cat_phosphonic = re.compile(r'fosfomycin')
+def phosphonic(textblock):
+	return bool(cat_phosphonic.search(textblock))==True
+mu['phosphonic_allergy'] = mu['new_allergies'].apply(phosphonic)
+
+cat_antiprotozoal = re.compile(r'pentamidine')
+def antiprotozoal(textblock):
+	return bool(cat_antiprotozoal.search(textblock))==True
+mu['antiprotozoal_allergy'] = mu['new_allergies'].apply(antiprotozoal)
+
+cat_folate_syn_inhibitor = re.compile(r'trimethoprim')
+def folate_syn_inhibitor(textblock):
+	return bool(cat_folate_syn_inhibitor.search(textblock))==True
+mu['folate_syn_inhibitor_allergy'] = mu['new_allergies'].apply(folate_syn_inhibitor)
+
+
+# %%
+"""delete columns without any listed antibiotic allergies"""
+boolcolumns = mu.select_dtypes(include=['bool']).columns.tolist()
+
+for colname in boolcolumns:
+	if mu[colname].sum() == 0:
+		print(f'No allergies listed for {colname}')
+		del mu[colname]
+
+
+# %%
+"""define which records have at least one categorized abx allergy"""
+boolcolumns = mu.select_dtypes(include=['bool']).columns.tolist()
+
+mu['abx_allergy']=0
+
+for colname in boolcolumns:
+	mu['abx_allergy'] = np.where(mu[colname]==1,1,mu['abx_allergy'])
+
+
 #%%
 """SAVE SPREADSHEET"""
 #path = r"C:\Users\kmckinley\OneDrive - Children's National Hospital\Documents\Colleagues\fellows\Malek"
@@ -765,3 +964,5 @@ filename = f"UTI_{today}.xlsx"
 writer = pd.ExcelWriter(filename, engine='xlsxwriter')
 mu.to_excel(writer, sheet_name='UTI_data',float_format="%.0f")
 writer.save()
+
+# %%
