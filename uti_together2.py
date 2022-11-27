@@ -515,6 +515,36 @@ and (CATALOG_TYPE = 'pharmacy')
 	Group by PT_FIN 
 	)
 
+--cte_purpose: create allergy_str variable, substring starting with pattern before allergies are listed in notes, ending after 1000 characters
+, notes as 
+	(
+       select pt_fin as fin_notes
+       , RESULT_TITLE_TEXT
+       , RESULT_DT_TM
+       , SUBSTRING(result,charindex('allergies (active)',result),1000) as allergy_str
+       from ED_NOTES_MASTER
+       where result like '%allergies (active%'
+--       and RESULT_DT_TM between @Start and @End
+--	   and pt_fin in {}
+    )
+
+ --cte_purpose: create allergy_substr variable, a substring of allergy_str that ends with pattern for next part of note OR ends after 1000 characters.
+ --not every note has the following section, which starts with 'Medication list', hence need for 2 CTEs
+, small_notes as 
+	(
+    select *
+    , case
+        when allergy_str like '%Medication list%'
+        then left(allergy_str,charindex('Medication list',allergy_str)-1)
+--		when allergy_str like '%pretreat%'
+--		then left(allergy_str,charindex('pretreat',allergy_str)-1)
+--		when allergy_str like '%pre-treat%'
+--		then left(allergy_str,charindex('pre-treat',allergy_str)-1)
+        else allergy_str
+        end allergy_substr
+        from notes
+	)
+
 
 --end of common table expressions
 
@@ -532,6 +562,7 @@ select patient_fin, patient_mrn, PT_DOB,age_months, gender_cat, race_cat ,Ethnic
 ,any_abx_prescribed, any_abx_start
 ,antibiotic_name, antibiotic_dose, antibiotic_unit, antibiotic_freq, antibiotic_duration, antibiotic_dur_unit
 ,Ceftriaxone_ED
+--,allergy_substr
 
 
 ----,orig_order_dt_tm
@@ -557,6 +588,7 @@ left outer join any_antibiotic_prescribed on tat.PATIENT_FIN = any_antibiotic_pr
 left outer join any_antibiotic_start on tat.PATIENT_FIN = any_antibiotic_start.PT_FIN_any_antibiotic_start
 left outer join antibiotic_prescibed on tat.PATIENT_FIN = antibiotic_prescibed.abx_fin
 left outer join temp_first on tat.PATIENT_FIN = temp_first.temp_pt_fin
+--left outer join small_notes on tat.PATIENT_FIN = small_notes.fin_notes
 
 
 ----left outer join temp1 on tat.PATIENT_FIN = temp1.temp_pt_fin
@@ -746,7 +778,8 @@ allergies_sql = """
 	group by fin_notes
 	)
 
-select * from med_allergy_flattened
+--select * from med_allergy_flattened
+select * from small_notes
 """.format(fin_tuple)
 
 allergies = pd.read_sql(allergies_sql,conn)
@@ -754,22 +787,18 @@ allergies = pd.read_sql(allergies_sql,conn)
 #%%
 """MERGE UTI AND ALLERGIES DF"""
 allergies1 = allergies.drop_duplicates()
-mu = pd.merge(uti1,allergies1,how="left",left_on='patient_fin',right_on='fin_notes')
-
+# mu = pd.merge(uti1,allergies1,how="left",left_on='patient_fin',right_on='fin_notes')
+mu = allergies.copy()
 
 # %%
-mu['new_allergies'] = mu['allergy_text'].fillna('no allergies')
+mu['new_allergies'] = mu['allergy_substr'].fillna('no known allergies')
 mu['new_allergies'] = mu['new_allergies'].str.lower()
 
 # %%
 # nonfunctional cell. Could retire, has no function other than example
 """TRY THE FOLLOWING SCRIPT ON EACH COMPILE BEFORE WRITING FUNCTION"""
-mu.query("new_allergies.str.contains(r'(penicillin|pen g benz|pen g pot|benzathine penic)')")['patient_mrn']
+# mu.query("new_allergies.str.contains(r'(penicillin|pen g benz|pen g pot|benzathine penic)')")['patient_mrn']
 
-
-# %%
-"""delete after completing update"""
-mu1 = mu.copy()
 
 # %%
 """DEFINE ABX CATEGORIES WITH REGEX"""
@@ -795,7 +824,7 @@ def aminopcn_or_carboxypcn_or_ureidopcn_w_beta_lactamase_inhibitor(textblock):
 	return bool(cat_aminopcn_or_carboxypcn_or_ureidopcn_w_beta_lactamase_inhibitor.search(textblock))==True
 mu['aminopcn_or_carboxypcn_or_ureidopcn_w_beta_lactamase_inhibitor_allergy'] = mu['new_allergies'].apply(aminopcn_or_carboxypcn_or_ureidopcn_w_beta_lactamase_inhibitor)
 
-cat_aminopenicillin = re.compile(r'am(oxi|pi)cillin')
+cat_aminopenicillin = re.compile(r'(am(oxi|pi)cillin|amoxil)')
 def aminopenicillin(textblock):
 	return bool(cat_aminopenicillin.search(textblock))==True
 mu['aminopenicillin_allergy'] = mu['new_allergies'].apply(aminopenicillin)
@@ -810,12 +839,12 @@ def first_gen_cephalosporin(textblock):
 	return bool(cat_first_gen_cephalosporin.search(textblock))==True
 mu['first_gen_cephalosporin_allergy'] = mu['new_allergies'].apply(first_gen_cephalosporin)
 
-cat_second_gen_cephalosporin = re.compile(r'(cefoxi|cef[up]ro[xz]|cefotetan)')
+cat_second_gen_cephalosporin = re.compile(r'(cefoxi|cef[up]ro[xz]|cefotetan|cefaclor)')
 def second_gen_cephalosporin(textblock):
 	return bool(cat_second_gen_cephalosporin.search(textblock))==True
 mu['second_gen_cephalosporin_allergy'] = mu['new_allergies'].apply(second_gen_cephalosporin)
 
-cat_third_gen_cephalosporin = re.compile(r'(ceftri|cefttri|cefix|cefdin|cefotax|ceftaz|cefpodox|omnicef)')
+cat_third_gen_cephalosporin = re.compile(r'(ceftri|cefttri|cefix|cefdin|cefotax|ceftaz|cefpodox|omnicef|rocephin)')
 def third_gen_cephalosporin(textblock):
 	return bool(cat_third_gen_cephalosporin.search(textblock))==True
 mu['third_gen_cephalosporin_allergy'] = mu['new_allergies'].apply(third_gen_cephalosporin)
@@ -873,7 +902,7 @@ def other_topical(textblock):
 	return bool(cat_other_topical.search(textblock))==True
 mu['other_topical_allergy'] = mu['new_allergies'].apply(other_topical)
 
-cat_sulfonamide =re.compile(r'(bactrim|sulf.+tri|sulfadiazine|sulfa drug)')
+cat_sulfonamide =re.compile(r'(bactrim|sulf.+tri|sulfadiazine|sulfa drug|sulfamethoxazole)')
 def sulfonamide(textblock):
 	return bool(cat_sulfonamide.search(textblock))==True
 mu['sulfonamide_allergy'] = mu['new_allergies'].apply(sulfonamide)
@@ -913,7 +942,7 @@ def oxazolidinone(textblock):
 	return bool(cat_oxazolidinone.search(textblock))==True
 mu['oxazolidinone_allergy'] = mu['new_allergies'].apply(oxazolidinone)
 
-cat_nitrofuran = re.compile(r'nitrofuran')
+cat_nitrofuran = re.compile(r'(nitrofuran|macrobid)')
 def nitrofuran(textblock):
 	return bool(cat_nitrofuran.search(textblock))==True
 mu['nitrofuran_allergy'] = mu['new_allergies'].apply(nitrofuran)
@@ -928,11 +957,13 @@ def antiprotozoal(textblock):
 	return bool(cat_antiprotozoal.search(textblock))==True
 mu['antiprotozoal_allergy'] = mu['new_allergies'].apply(antiprotozoal)
 
+"""
+# rare this would be considered in isolation from sulfa
 cat_folate_syn_inhibitor = re.compile(r'trimethoprim')
 def folate_syn_inhibitor(textblock):
 	return bool(cat_folate_syn_inhibitor.search(textblock))==True
 mu['folate_syn_inhibitor_allergy'] = mu['new_allergies'].apply(folate_syn_inhibitor)
-
+"""
 
 # %%
 """delete columns without any listed antibiotic allergies"""
@@ -948,11 +979,54 @@ for colname in boolcolumns:
 """define which records have at least one categorized abx allergy"""
 boolcolumns = mu.select_dtypes(include=['bool']).columns.tolist()
 
+mu['number_allergies']=0
 mu['abx_allergy']=0
+
+mu['number_allergies']=mu.loc[:,boolcolumns].sum(axis=1)
 
 for colname in boolcolumns:
 	mu['abx_allergy'] = np.where(mu[colname]==1,1,mu['abx_allergy'])
 
+# %%
+"""use number_allergies column to sort before dropping duplicate fins"""
+mu = mu.sort_values(by=['fin_notes','number_allergies'],ascending=False)
+mu = mu.drop_duplicates(subset='fin_notes')
+
+# %%
+"""group pcn and ceph abx allergies for uti dataset"""
+# mu[boolcolumns].sum()
+pd.set_option('display.max_colwidth', 1000)
+pd.set_option('display.max_colwidth', 50)
+
+# no flagrantly obvious abx allergies remain uncounted 
+# mu[(mu.abx_allergy==False)&(~mu.new_allergies.str.contains('no known medication allergies')&(~mu.new_allergies.str.contains('no known allerg')))]['new_allergies']
+# mu[(mu.aminopcn_or_carboxypcn_or_ureidopcn_w_beta_lactamase_inhibitor_allergy==True)&(~mu.new_allergies.str.contains('augment'))&(mu.aminopenicillin_allergy==False)]
+
+mu['group_pcn_allergy'] = 0
+mu['group_ceph_allergy'] = 0
+
+pcncolumns = ['penicillin_allergy',
+ 'aminopcn_or_carboxypcn_or_ureidopcn_w_beta_lactamase_inhibitor_allergy',
+ 'aminopenicillin_allergy']
+cephcolumns = ['first_gen_cephalosporin_allergy',
+ 'second_gen_cephalosporin_allergy',
+ 'third_gen_cephalosporin_allergy']
+
+for colname in pcncolumns:
+	mu['group_pcn_allergy'] = np.where(mu[colname]==1,1,mu['group_pcn_allergy'])
+
+for colname in cephcolumns:
+	mu['group_ceph_allergy'] = np.where(mu[colname]==1,1,mu['group_ceph_allergy'])
+
+# %%
+"""mergy uti and allergy dfs"""
+jc = pd.merge(uti1,mu,how="left",left_on='patient_fin',right_on='fin_notes')
+
+
+# %%
+# all aminopcn_or_carboxypcn_or_ureidopcn_w_beta_lactamase_inhibitor_allergy are amox/clav or augmentin
+# mu[(mu.aminopcn_or_carboxypcn_or_ureidopcn_w_beta_lactamase_inhibitor_allergy==True)&(mu.new_allergies.str.contains('augment'))]
+# mu[(mu.aminopcn_or_carboxypcn_or_ureidopcn_w_beta_lactamase_inhibitor_allergy==True)&(mu.aminopenicillin_allergy==True)]
 
 #%%
 """SAVE SPREADSHEET"""
@@ -962,7 +1036,7 @@ for colname in boolcolumns:
 today = date.today()
 filename = f"UTI_{today}.xlsx"
 writer = pd.ExcelWriter(filename, engine='xlsxwriter')
-mu.to_excel(writer, sheet_name='UTI_data',float_format="%.0f")
+jc.to_excel(writer, sheet_name='UTI_data',float_format="%.0f")
 writer.save()
 
 # %%
