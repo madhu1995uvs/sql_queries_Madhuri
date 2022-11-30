@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 SEE BELOW FOR FIRST 692 LINES OF uti_together2.py
-
+NOW WITH EDITS FROM 'UTI with new edits' 
 @author: kmckinley
 """
 
@@ -24,13 +24,13 @@ conn = pyodbc.connect('Driver={ODBC Driver 17 for SQL Server};'
                       'Database=EMTCQIData;'
                       'Trusted_Connection=yes;')
 
-"""
+
 start_date = '01/01/2018'
 end_date = '04/01/2021'
 
 date_range = parse(start_date).strftime("%m_%d_%Y") + '_to_' +     parse(end_date).strftime("%m_%d_%Y")
 date_range
-"""
+
 
 
 #%%
@@ -40,17 +40,8 @@ uti_sql = """
 DECLARE @Start Date
 DECLARE @End Date
 
-SET @Start = '01/01/18'
-SET @End = '04/01/21'
-
-/* Patient, provider charecterstics and visist variables for measuring Adherence 
-to First-Line Antimicrobial Treatment for Presumed Urinary Tract Infections in
-the Emergency Department
-
-Written by ED Data Analytics Team
-Last updated 09/07/22 */
-
---Common table expressions
+SET @Start = ?
+SET @End = ?
 
 ; with TAT as 
        (
@@ -71,6 +62,8 @@ Last updated 09/07/22 */
               , left(PT_ACUITY,1) ESI
               ,dispo_date_time
               ,CHECKIN_DATE_TIME
+			  ,pt_disch_dispo 
+
 		
 		
 		,case when PT_gender like '%M%' then '0'
@@ -126,7 +119,7 @@ Last updated 09/07/22 */
 
        from ED_TAT_MASTER
        where CHECKIN_DATE_TIME between @Start and @End
-       )
+       and pt_disch_dispo not like '%IP%' and pt_disch_dispo not like '%inpatient%')
 
 --cte_purpose: create level of training variable with 0=resident/PA, 1=non-PEM LIP, 2=PEM provider
 , level_training as (
@@ -201,7 +194,7 @@ Last updated 09/07/22 */
 		   , CHECKIN_DATE_TIME as checkin_date_time_bb
 		from ED_TAT_MASTER
        )
-
+	   
 --cte_purpose: create LE, nitrite, and wbc variables for UA
 , ua_results as
 	(
@@ -385,6 +378,7 @@ where ORIG_ORD_AS like 'Prescription'
  select distinct
  PT_FIN as PT_FIN_any_antibiotic_start
  ,any_abx_start='1'
+ , COMPLETED_DT_TM as antibiotic_date_time
  ,case when ORDER_MNEMONIC like '%ceftri%'
 	then '1'
 	else '0'
@@ -413,12 +407,17 @@ and (CATALOG_TYPE = 'pharmacy')
 						Or ORDERED_AS_MNEMONIC like '%oxacin%'
 						Or ORDERED_AS_MNEMONIC like '%zolid%'
 )
-              and (RX_ROUTE is null
+             and (RX_ROUTE is null
                       or (RX_ROUTE Not Like '%oph%'      
                       And RX_ROUTE Not Like '%top%' 
                       And RX_ROUTE Not Like '%eye%' 
                       And RX_ROUTE Not Like '%ear%' 
-                      And RX_ROUTE Not Like '%otic%'))
+                      And RX_ROUTE Not Like '%otic%'
+					   And RX_ROUTE Not Like 'bucc'
+					   And RX_ROUTE Not Like 'IM'
+						And RX_ROUTE Not Like 'IV'
+						And RX_ROUTE Not Like 'Nasal'
+					  ))
               and (ORDER_STATUS = 'Ordered'
 			  or ORDER_STATUS = 'Completed'))
 			  --AND CHECKIN_DT_TM BETWEEN @Start and @End
@@ -447,14 +446,22 @@ and (CATALOG_TYPE = 'pharmacy')
                       or ORDER_MNEMONIC like '%cefdinir%'
                       or ORDER_MNEMONIC like '%amoxicillin%'
                       or ORDER_MNEMONIC like '%ciprofloxacin%'
-                      )
+					  or ORDER_MNEMONIC like '%Cefuroxime%'
+                      or ORDERED_AS_MNEMONIC Like '%cillin%' 
+						Or ORDERED_AS_MNEMONIC Like '%cef%'
+						Or ORDERED_AS_MNEMONIC Like '%augmentin%' 
+						Or ORDERED_AS_MNEMONIC like '%oxacin%')
               and (RX_ROUTE is null
                       or (RX_ROUTE Not Like '%oph%'      
                       And RX_ROUTE Not Like '%top%' 
                       And RX_ROUTE Not Like '%eye%' 
                       And RX_ROUTE Not Like '%ear%' 
-                      And RX_ROUTE Not Like '%otic%'))
-              and ORDER_STATUS not like '%cancel%'
+                      And RX_ROUTE Not Like '%otic%'
+					  )
+					and ORDER_MNEMONIC not like '% otic%'  
+					and ORDER_MNEMONIC not like '% oph%' 
+					 )
+              and ORDER_STATUS not like '%cancel%' 
               AND CHECKIN_DT_TM BETWEEN @Start and @End
        )
 
@@ -515,41 +522,11 @@ and (CATALOG_TYPE = 'pharmacy')
 	Group by PT_FIN 
 	)
 
---cte_purpose: create allergy_str variable, substring starting with pattern before allergies are listed in notes, ending after 1000 characters
-, notes as 
-	(
-       select pt_fin as fin_notes
-       , RESULT_TITLE_TEXT
-       , RESULT_DT_TM
-       , SUBSTRING(result,charindex('allergies (active)',result),1000) as allergy_str
-       from ED_NOTES_MASTER
-       where result like '%allergies (active%'
---       and RESULT_DT_TM between @Start and @End
---	   and pt_fin in {}
-    )
-
- --cte_purpose: create allergy_substr variable, a substring of allergy_str that ends with pattern for next part of note OR ends after 1000 characters.
- --not every note has the following section, which starts with 'Medication list', hence need for 2 CTEs
-, small_notes as 
-	(
-    select *
-    , case
-        when allergy_str like '%Medication list%'
-        then left(allergy_str,charindex('Medication list',allergy_str)-1)
---		when allergy_str like '%pretreat%'
---		then left(allergy_str,charindex('pretreat',allergy_str)-1)
---		when allergy_str like '%pre-treat%'
---		then left(allergy_str,charindex('pre-treat',allergy_str)-1)
-        else allergy_str
-        end allergy_substr
-        from notes
-	)
-
 
 --end of common table expressions
 
 
-select patient_fin, patient_mrn, PT_DOB,age_months, gender_cat, race_cat ,Ethnicity_cat
+select patient_fin, patient_mrn, CHECKIN_DATE_TIME, PT_DOB,age_months, gender_cat, race_cat ,Ethnicity_cat
 ,Insurance_cat, insurance_other,Language_cat
 ,allicd,FIRST_MD_SEEN,LAST_ASSIGNED_MD,seen_by_res_pa, level_of_training
 ,REASON_FOR_VISIT,ESI,PT_DX1,PT_DX2,PT_DX3
@@ -559,10 +536,9 @@ select patient_fin, patient_mrn, PT_DOB,age_months, gender_cat, race_cat ,Ethnic
 , ua_LE_max, ua_nitrite_max, ua_wbc_max, ua_final_cat
 , ucx_source
 , urine_culture_result, positive_culture
-,any_abx_prescribed, any_abx_start
+,any_abx_prescribed, any_abx_start, antibiotic_date_time
 ,antibiotic_name, antibiotic_dose, antibiotic_unit, antibiotic_freq, antibiotic_duration, antibiotic_dur_unit
 ,Ceftriaxone_ED
---,allergy_substr
 
 
 ----,orig_order_dt_tm
@@ -588,7 +564,6 @@ left outer join any_antibiotic_prescribed on tat.PATIENT_FIN = any_antibiotic_pr
 left outer join any_antibiotic_start on tat.PATIENT_FIN = any_antibiotic_start.PT_FIN_any_antibiotic_start
 left outer join antibiotic_prescibed on tat.PATIENT_FIN = antibiotic_prescibed.abx_fin
 left outer join temp_first on tat.PATIENT_FIN = temp_first.temp_pt_fin
---left outer join small_notes on tat.PATIENT_FIN = small_notes.fin_notes
 
 
 ----left outer join temp1 on tat.PATIENT_FIN = temp1.temp_pt_fin
@@ -599,24 +574,24 @@ where age_months between 0 and 228
 --AND (temp_first.RESULT_DT_tm = TEMP-FIRST.FIRST_TEMP)
 and (allicd like '%,N30.00%' 
 or allicd like '%,N30.01%' 
-or allicd like '%,N30.10%' 
-or allicd like '%,N30.11%' 
-or allicd like '%,N30.20%' 
-or allicd like '%,N30.21%' 
-or allicd like '%,N30.30%' 
-or allicd like '%,N30.31%' 
-or allicd like '%,N30.40%' 
-or allicd like '%,N30.41%' 
+--or allicd like '%,N30.10%' 
+--or allicd like '%,N30.11%' 
+--or allicd like '%,N30.20%' 
+--or allicd like '%,N30.21%' 
+--or allicd like '%,N30.30%' 
+--or allicd like '%,N30.31%' 
+--or allicd like '%,N30.40%' 
+--or allicd like '%,N30.41%' 
 or allicd like '%,N30.80%' 
 or allicd like '%,N30.81%' 
 or allicd like '%,N30.90%' 
 or allicd like '%,N30.91%'
-or allicd like '%,N34.0%' 
-or allicd like '%,N34.1%' 
-or allicd like '%,N34.2%' 
-or allicd like '%,N34.3%' 
-or allicd like '%,N39.0%' 
-or allicd like '%,N39.9%')
+--or allicd like '%,N34.0%' 
+--or allicd like '%,N34.1%' 
+--or allicd like '%,N34.2%' 
+--or allicd like '%,N34.3%' 
+or allicd like '%,N39.0%')
+--or allicd like '%,N39.9%')
 
 
 order by patient_fin asc, udip_result_cat desc, positive_culture desc, antibiotic_duration desc, Ceftriaxone_ED desc
@@ -625,5 +600,6 @@ order by patient_fin asc, udip_result_cat desc, positive_culture desc, antibioti
 
 """
 
-#uti = pd.read_sql(uti_sql,conn, params=[start_date,end_date])
-uti = pd.read_sql(uti_sql,conn)
+uti = pd.read_sql(uti_sql,conn, params=[start_date,end_date])
+# uti = pd.read_sql(uti_sql,conn)
+# %%
