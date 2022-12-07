@@ -415,8 +415,6 @@ and (CATALOG_TYPE = 'pharmacy')
                       And RX_ROUTE Not Like '%ear%' 
                       And RX_ROUTE Not Like '%otic%'
 					   And RX_ROUTE Not Like 'bucc'
-					   And RX_ROUTE Not Like 'IM'
-						And RX_ROUTE Not Like 'IV'
 						And RX_ROUTE Not Like 'Nasal'
 					  ))
               and (ORDER_STATUS = 'Ordered'
@@ -462,7 +460,8 @@ and (CATALOG_TYPE = 'pharmacy')
 					and ORDER_MNEMONIC not like '% otic%'  
 					and ORDER_MNEMONIC not like '% oph%' 
 					 )
-              and ORDER_STATUS not like '%cancel%' 
+              and (ORDER_STATUS = 'Ordered'
+			  		  or ORDER_STATUS = 'Completed')
               AND CHECKIN_DT_TM BETWEEN @Start and @End
        )
 
