@@ -316,14 +316,6 @@ inner join udip_wbc on udip_nit.pt_fin_udip_nit=udip_wbc.pt_fin_udip_wbc and udi
 		PT_FIN as PT_FIN_urine_culture
 		--, order_mnemonic
 		, result as urine_culture_result
---case below is redundant and probably underperforms compared to ucx source
-/*
-, case
-		when result like '%cathet%'
-		then '1'
-		else '0'
-end urine_cath
-*/
 		, case 
 			when result like '%[5-9]0,000%'
 			or result like '%00,000%'
@@ -335,52 +327,14 @@ end positive_culture
 		and ORDER_MNEMONIC like '%urine culture%')
 	
 
---cte_purpose: Create variable for Antibiotics prescribed
- --Note to Kenny: confirm line 100
-
- ,any_antibiotic_prescribed as (
- select distinct
- PT_FIN as PT_FIN_any_antibiotic_prescribed
- ,any_abx_prescribed='1'
---, COMPLETED_DT_TM
---, ORDER_STATUS
-from ED_Orders_Import_Master
-where ORIG_ORD_AS like 'Prescription'
-              and (ORDER_MNEMONIC like '%cefprozil%'
-                      or ORDER_MNEMONIC like '%cephalex%'
-                      or ORDER_MNEMONIC like '%trimethoprim%'
-                      or ORDER_MNEMONIC like '%nitrofurantoin%'
-                      or ORDER_MNEMONIC like '%cefdinir%'
-                      or ORDER_MNEMONIC like '%amoxicillin%'
-                      or ORDER_MNEMONIC like '%ciprofloxacin%'
-                    or  ORDERED_AS_MNEMONIC Like '%cillin%' 
-					Or ORDERED_AS_MNEMONIC Like '%mycin%'
-					Or ORDERED_AS_MNEMONIC like '%micin%'
-					Or ORDERED_AS_MNEMONIC Like '%cef%'
-				/* avoid acephen rectal tylenol by excluding % */
-					Or ORDERED_AS_MNEMONIC Like 'ceph%' 
-					Or ORDERED_AS_MNEMONIC Like 'roceph%' 
-					Or ORDERED_AS_MNEMONIC Like '%augmentin%' 
-					Or ORDERED_AS_MNEMONIC Like '%penem%'
-					Or ORDERED_AS_MNEMONIC like '%oxacin%'
-					Or ORDERED_AS_MNEMONIC like '%zolid%'
-                      )
-              and (RX_ROUTE is null
-                      or (RX_ROUTE Not Like '%oph%'      
-                      And RX_ROUTE Not Like '%top%' 
-                      And RX_ROUTE Not Like '%eye%' 
-                      And RX_ROUTE Not Like '%ear%' 
-                      And RX_ROUTE Not Like '%otic%'))
-              and (ORDER_STATUS = 'Ordered'
-			  or ORDER_STATUS = 'Completed'))
-			  --AND CHECKIN_DT_TM BETWEEN @Start and @End
-
- ,any_antibiotic_start as (
+,any_antibiotic_start as (
  select distinct
  PT_FIN as PT_FIN_any_antibiotic_start
- ,any_abx_start='1'
+ , any_abx_start='1'
  , COMPLETED_DT_TM as antibiotic_date_time
- ,case when ORDER_MNEMONIC like '%ceftri%'
+ , case when RX_route in ('Chewed','GTUBE','JTUBE','MISC','NG','NJ','PEG','perf','PO','PO/Tube')
+	then '1' else '0' end oral_abx_ED
+ , case when ORDER_MNEMONIC like '%ceftri%'
 	then '1'
 	else '0'
 	end Ceftriaxone_ED
@@ -425,8 +379,9 @@ and (CATALOG_TYPE = 'pharmacy')
 
 --cte_purpose: create dose, unit, frequency, duration variables for prescribed antibiotics
 , antibiotic_prescibed as (
-       SELECT distinct
-         PT_FIN as abx_fin
+       SELECT distinct PT_FIN as abx_fin
+	   , any_abx_prescribed = '1'
+		 , 	ROW_NUMBER() over (Partition by pt_fin order by orig_order_dt_tm desc) as most_recent_rx
        , ORDER_MNEMONIC as antibiotic_name
        , DOSE AS antibiotic_dose
        , DOSE_UNIT AS antibiotic_unit
@@ -464,27 +419,6 @@ and (CATALOG_TYPE = 'pharmacy')
 			  		  or ORDER_STATUS = 'Completed')
               AND CHECKIN_DT_TM BETWEEN @Start and @End
        )
-
-/*
---cte_purpose: create variable for Ceftriaxone in ED
-
-,Ceftriaxone as (
-       SELECT distinct
-         PT_FIN as cef_fin
-       ,case when ORIG_ORD_AS like 'Normal Order'
-              and (ORDER_MNEMONIC like '%Ceftriaxone%')
-              and (RX_ROUTE is null
-                      or (RX_ROUTE Not Like '%oph%'      
-                      And RX_ROUTE Not Like '%top%' 
-                      And RX_ROUTE Not Like '%eye%' 
-                      And RX_ROUTE Not Like '%ear%' 
-                      And RX_ROUTE Not Like '%otic%'))
-              and ORDER_STATUS not like '%cancel%' then '1'
-			  else '0'
-			  end Ceftriaxone_ED
-             
-     FROM ED_Orders_Import_Master 
-	 where CHECKIN_DT_TM BETWEEN @Start and @End)*/
 	   
 --cte_purpose: create variable first temperature result
 , temp_first as 
@@ -526,7 +460,7 @@ and (CATALOG_TYPE = 'pharmacy')
 --end of common table expressions
 
 
-select patient_fin, patient_mrn, CHECKIN_DATE_TIME, PT_DOB,age_months, gender_cat, race_cat ,Ethnicity_cat
+select distinct patient_fin, patient_mrn, CHECKIN_DATE_TIME, PT_DOB,age_months, gender_cat, race_cat ,Ethnicity_cat
 ,Insurance_cat, insurance_other,Language_cat
 ,allicd,FIRST_MD_SEEN,LAST_ASSIGNED_MD,seen_by_res_pa, level_of_training
 ,REASON_FOR_VISIT,ESI,PT_DX1,PT_DX2,PT_DX3
@@ -538,7 +472,7 @@ select patient_fin, patient_mrn, CHECKIN_DATE_TIME, PT_DOB,age_months, gender_ca
 , urine_culture_result, positive_culture
 ,any_abx_prescribed, any_abx_start, antibiotic_date_time
 ,antibiotic_name, antibiotic_dose, antibiotic_unit, antibiotic_freq, antibiotic_duration, antibiotic_dur_unit
-,Ceftriaxone_ED
+,oral_abx_ED, Ceftriaxone_ED
 
 
 ----,orig_order_dt_tm
@@ -560,7 +494,6 @@ left outer join tat_bb on tat.patient_mrn = tat_bb.patient_mrn_bb and datediff(h
 left outer join ua_final on tat.PATIENT_FIN = ua_final.pt_fin_ua
 left outer join udip_cat on tat.PATIENT_FIN = udip_cat.pt_fin_udip_cat
 left outer join urine_culture on tat.PATIENT_FIN = urine_culture.PT_FIN_urine_culture
-left outer join any_antibiotic_prescribed on tat.PATIENT_FIN = any_antibiotic_prescribed.PT_FIN_any_antibiotic_prescribed
 left outer join any_antibiotic_start on tat.PATIENT_FIN = any_antibiotic_start.PT_FIN_any_antibiotic_start
 left outer join antibiotic_prescibed on tat.PATIENT_FIN = antibiotic_prescibed.abx_fin
 left outer join temp_first on tat.PATIENT_FIN = temp_first.temp_pt_fin
@@ -571,6 +504,7 @@ left outer join temp_first on tat.PATIENT_FIN = temp_first.temp_pt_fin
 ----left outer join Ceftriaxone on tat.PATIENT_FIN = Ceftriaxone.cef_fin
 
 where age_months between 0 and 228
+and (most_recent_rx < 2 or most_recent_rx is null)
 --AND (temp_first.RESULT_DT_tm = TEMP-FIRST.FIRST_TEMP)
 and (allicd like '%,N30.00%' 
 or allicd like '%,N30.01%' 
