@@ -933,6 +933,37 @@ jc = pd.merge(uti1,mu,how="left",left_on='patient_fin',right_on='fin_notes')
 
 
 # %%
+"""DUPLICATE FINS ARE RELATED TO THE COLUMNS WITH THE FEWEST DUPLICATES WHEN EVALUATING THAT SPECIFIC COLUMN
+THE COLUMNS MOST ASSOCIATED DUPLICATES ARE EXPECTED AND ADDRESS, INDCLUDING ceftriaxone_ED (ordered to list 1 first) and urine_culture_result (ordered positive culture first)"""
+jc_columns = ['patient_fin', 'patient_mrn', 'CHECKIN_DATE_TIME', 'PT_DOB',
+       'age_months', 'gender_cat', 'race_cat', 'Ethnicity_cat',
+       'Insurance_cat', 'insurance_other', 'Language_cat', 'allicd',
+       'FIRST_MD_SEEN', 'LAST_ASSIGNED_MD', 'seen_by_res_pa',
+       'level_of_training', 'REASON_FOR_VISIT', 'ESI', 'PT_DX1', 'PT_DX2',
+       'PT_DX3', 'bb', 'first_temp', 'udip_result_cat', 'ua_LE_max',
+       'ua_nitrite_max', 'ua_wbc_max', 'ua_final_cat', 'ucx_source',
+       'urine_culture_result', 'positive_culture', 'any_abx_prescribed',
+       'any_abx_start', 'antibiotic_date_time', 'antibiotic_name',
+       'antibiotic_dose', 'antibiotic_unit', 'antibiotic_freq',
+       'antibiotic_duration', 'antibiotic_dur_unit', 'oral_abx_ED',
+       'Ceftriaxone_ED', 'fin_notes', 'RESULT_TITLE_TEXT', 'RESULT_DT_TM',
+       'allergy_str', 'allergy_substr', 'new_allergies',
+       'aminoglycoside_allergy', 'penicillin_allergy',
+       'aminopcn_or_carboxypcn_or_ureidopcn_w_beta_lactamase_inhibitor_allergy',
+       'aminopenicillin_allergy', 'first_gen_cephalosporin_allergy',
+       'third_gen_cephalosporin_allergy', 'lincosamide_allergy',
+       'glycopeptide_allergy', 'macrolide_allergy', 'monobactam_allergy',
+       'other_topical_allergy', 'sulfonamide_allergy',
+       'fluoroquinolone_allergy', 'tetracycline_allergy', 'nitrofuran_allergy',
+       'number_allergies', 'abx_allergy', 'group_pcn_allergy',
+       'group_ceph_allergy']
+for colname in jc_columns:
+	dup = jc[['patient_fin',colname]]
+	print(f'There are {len(dup[dup.duplicated()])} duplicates evaluating fin with the following column: {colname}')
+
+
+
+# %%
 # all aminopcn_or_carboxypcn_or_ureidopcn_w_beta_lactamase_inhibitor_allergy are amox/clav or augmentin
 # mu[(mu.aminopcn_or_carboxypcn_or_ureidopcn_w_beta_lactamase_inhibitor_allergy==True)&(mu.new_allergies.str.contains('augment'))]
 # mu[(mu.aminopcn_or_carboxypcn_or_ureidopcn_w_beta_lactamase_inhibitor_allergy==True)&(mu.aminopenicillin_allergy==True)]
