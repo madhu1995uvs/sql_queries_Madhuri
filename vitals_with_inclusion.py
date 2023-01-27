@@ -140,7 +140,7 @@ inclusion_sql  = """
        )
 --cte_purpose: create variable for sepsis_treatment from bolus
 ,bolus as (select
-  PT_FIN as bolus_pt_fi
+  PT_FIN as bolus_pt_fin
   ,bolus_GIVEN_DT_TM_1 = max(case when RN=1 then [GIVEN_DT_TM] end)
   ,bolus_GIVEN_DT_TM_2 = max(case when RN=2 then [GIVEN_DT_TM] end)
   ,bolus_GIVEN_DT_TM_3 = max(case when RN=3 then [GIVEN_DT_TM] end)
@@ -212,14 +212,22 @@ where two_bolus = '1' and abx = '1')
 				where datediff (hour,TRIAGE_DATE_TIME,culture_dt_tm)<6
                 and datediff (hour,TRIAGE_DATE_TIME,bolus_GIVEN_DT_TM_2)<6
                 and datediff (hour,TRIAGE_DATE_TIME,ab_GIVEN_DT_TM)<6
-				and osh != '1'
+				and osh is null
 				and (seps_tx='1' Or (screen_pos = '1' and bcx = '1'))
 				and age_mo between 3 and 216)
 
 select *
 from final
 """
+
 inclusion= pd.read_sql(inclusion_sql,conn,params=[start_date,end_date])
+
+# %%
+"""merge vital sign data with included patients"""
+# see documentation here: https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.merge.html
+final_vitals = inclusion.merge(all_vitals,how='left',left_on='patient_fin',right_on='EncounterId')
+
+
 
 # %%
 #de-ID FIN and mrn
@@ -229,19 +237,22 @@ def shash(val):
     h.update(vb)
     return h.digest()
 
-all_vitals['PatientId'] = all_vitals['PatientId'].astype(str)
-all_vitals['PatientId'] = all_vitals['PatientId'].apply(shash)
+final_vitals['PatientId'] = final_vitals['PatientId'].astype(str)
+final_vitals['PatientId'] = final_vitals['PatientId'].apply(shash)
 
-all_vitals['EncounterId'] = all_vitals['EncounterId'].astype(str)
-all_vitals['EncounterId'] = all_vitals['EncounterId'].apply(shash)
+final_vitals['EncounterId'] = final_vitals['EncounterId'].astype(str)
+final_vitals['EncounterId'] = final_vitals['EncounterId'].apply(shash)
 
 # %%
-all_vitals['CaptureTimestamp'] = 'rq_date_offset'
+"""create date offset for deidentification"""
+final_vitals['CaptureTimestamp'] = 'rq_date_offset'
+final_vitals = final_vitals[['PatientId', 'EncounterId', 'VitalSignName',
+       'VitalSignValue', 'CaptureTimestamp']]
 
 
 # %%
 filename = f"vitals_trial.xlsx"
 writer = pd.ExcelWriter(filename, engine='xlsxwriter')
-all_vitals.to_excel(writer,float_format="%.0f", index=False)
+final_vitals.to_excel(writer,float_format="%.0f", index=False)
 writer.save()
 # %%
