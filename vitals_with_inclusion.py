@@ -95,17 +95,56 @@ temp = pd.read_sql(temp_sql,conn,params=[start_date,end_date])
 
 # %%
 """O2 sat query"""
-
+O2sat_sql  = """
+; with O2sat as (
+      select PT_MRN as PatientId
+      ,PT_FIN as EncounterId
+      ,[OXYGEN_SAT] as VitalSignName
+     ,[OXYGEN_SAT_RESULT] as VitalSignValue
+      ,[RESULT_DT_TM] as CaptureTimestamp
+  from ED_Vitals_Import_Master
+  where OXYGEN_SAT_RESULT is not null and CHECKIN_DT_TM between ? and ?
+	)
+select * from O2sat
+"""
+O2sat = pd.read_sql(O2sat_sql,conn,params=[start_date,end_date])
 # %%
 """SBP query"""
-
+sbp_sql  = """
+; with sbp as (
+      select PT_MRN as PatientId
+      ,PT_FIN as EncounterId
+      ,[SYSBP] as VitalSignName
+     ,[SYSBP_RESULT] as VitalSignValue
+      ,[RESULT_DT_TM] as CaptureTimestamp
+  from ED_Vitals_Import_Master
+  where SYSBP_RESULT is not null and CHECKIN_DT_TM between ? and ?
+	)
+select * from sbp
+"""
+sbp = pd.read_sql(sbp_sql,conn,params=[start_date,end_date])
 # %%
 """DBP query"""
-
+dbp_sql  = """
+; with dbp as (
+      select PT_MRN as PatientId
+      ,PT_FIN as EncounterId
+      ,[DIABP] as VitalSignName
+     ,[DIABP_RESULT] as VitalSignValue
+      ,[RESULT_DT_TM] as CaptureTimestamp
+  from ED_Vitals_Import_Master
+  where DIABP_RESULT is not null and CHECKIN_DT_TM between ? and ?
+	)
+select * from dbp
+"""
+dbp = pd.read_sql(dbp_sql,conn,params=[start_date,end_date])
 # %%
 """append other VS to pulse, then order by mrn, fin, then deidentify"""
 all_vitals = pd.concat([rr,pulse],ignore_index=True)
 all_vitals = pd.concat([all_vitals,temp],ignore_index=True)
+all_vitals = pd.concat([all_vitals,O2sat],ignore_index=True)
+all_vitals = pd.concat([all_vitals,sbp],ignore_index=True)
+all_vitals = pd.concat([all_vitals,dbp],ignore_index=True)
 # create new line of code to concat each new vs table
 # all_vitals = pd.concat([all_vitals,newvs],ignore_index=True)
 
@@ -204,6 +243,7 @@ where two_bolus = '1' and abx = '1')
 
 ,final as (
 		select *
+        --,redcap_repeat_instance=Row_Number() over (Partition By patient_fin Order by [RESULT_DT_TM])
 		from tat
 			left outer join notes on tat.patient_fin = notes.notes_fin 
 			left outer join sepsis_treatment on tat.patient_fin = sepsis_treatment.bolus_pt_fin 
@@ -237,18 +277,21 @@ def shash(val):
     h.update(vb)
     return h.digest()
 
-final_vitals['PatientId'] = final_vitals['PatientId'].astype(str)
-final_vitals['PatientId'] = final_vitals['PatientId'].apply(shash)
+final_vitals['PatientId_v'] = final_vitals['PatientId'].astype(str)
+final_vitals['PatientId_v'] = final_vitals['PatientId_v'].apply(shash)
 
-final_vitals['EncounterId'] = final_vitals['EncounterId'].astype(str)
-final_vitals['EncounterId'] = final_vitals['EncounterId'].apply(shash)
+final_vitals['EncounterId_v'] = final_vitals['EncounterId'].astype(str)
+final_vitals['EncounterId_v'] = final_vitals['EncounterId_v'].apply(shash)
 
 # %%
 """create date offset for deidentification"""
 final_vitals['CaptureTimestamp'] = 'rq_date_offset'
-final_vitals = final_vitals[['PatientId', 'EncounterId', 'VitalSignName',
+final_vitals = final_vitals[['PatientId_v', 'EncounterId_v', 'VitalSignName',
        'VitalSignValue', 'CaptureTimestamp']]
 
+# %%
+
+df.to_csv(f'vitals_{start_date}-{end_date}.csv',index=false)
 
 # %%
 filename = f"vitals_trial.xlsx"
