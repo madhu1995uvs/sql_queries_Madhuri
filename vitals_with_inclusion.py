@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
 """
+Created on Fri Feb  3 11:00:06 2023
+
+@author: MUPPULURI
+"""
+
+# -*- coding: utf-8 -*-
+"""
 Created on Wed Jan 25 12:12:42 2023
 
 @author: MUPPULURI
@@ -284,14 +291,23 @@ final_vitals['EncounterId_v'] = final_vitals['EncounterId'].astype(str)
 final_vitals['EncounterId_v'] = final_vitals['EncounterId_v'].apply(shash)
 
 # %%
-"""create date offset for deidentification"""
-final_vitals['CaptureTimestamp'] = 'rq_date_offset'
+from pandas.tseries.offsets import DateOffset
+final_vitals['CaptureTimestamp1']=final_vitals['CaptureTimestamp']+DateOffset(days=14)
+
+# %%
+#"""create date offset for deidentification"""
+#final_vitals['CaptureTimestamp'] = 'rq_date_offset'
 final_vitals = final_vitals[['PatientId_v', 'EncounterId_v', 'VitalSignName',
-       'VitalSignValue', 'CaptureTimestamp']]
+       'VitalSignValue', 'CaptureTimestamp1']]
 
 # %%
 
-df.to_csv(f'vitals_{start_date}-{end_date}.csv',index=false)
+csv_path = os.getcwd()
+csv_filename = f'vitals_{date_range}.csv'
+csv_pathfile = csv_path + "\\" + csv_filename
+
+# %%
+final_vitals.to_csv(f'vitals_{date_range}.csv',index=False)
 
 # %%
 filename = f"vitals_trial.xlsx"
